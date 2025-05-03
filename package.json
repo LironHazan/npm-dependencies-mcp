@@ -23,11 +23,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/npm-dependencies-mcp.git"
+    "url": "git+https://github.com/LironHazan/npm-dependencies-mcp.git"
   },
-  "homepage": "https://github.com/yourusername/npm-dependencies-mcp#readme",
+  "homepage": "https://github.com/LironHazan/npm-dependencies-mcp#readme",
   "bugs": {
-    "url": "https://github.com/yourusername/npm-dependencies-mcp/issues"
+    "url": "https://github.com/LironHazan/npm-dependencies-mcp/issues"
   },
   "keywords": [
     "monorepo",
@@ -55,5 +55,8 @@
     "dependency-cruiser": "^15.4.0",
     "madge": "^6.1.0",
     "supertest": "^6.3.3"
+  },
+  "volta": {
+    "node": "20.14.0"
   }
 }
