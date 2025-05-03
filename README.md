@@ -5,7 +5,7 @@
 ### Global Installation
 ```bash
 # Install globally
-npm install -g mcp-npm-dependencies
+npm install -g npm-dependencies-mcp
 
 # Now you can use the mcp-npm command from anywhere
 mcp-npm --help
@@ -14,7 +14,7 @@ mcp-npm --help
 ### Local Installation in Your Project
 ```bash
 # Install as a development dependency
-npm install --save-dev mcp-npm-dependencies
+npm install --save-dev npm-dependencies-mcp
 
 # Use with npx
 npx mcp-npm --help
@@ -23,21 +23,21 @@ npx mcp-npm --help
 ### Run Directly with npx (No Installation)
 ```bash
 # Run directly without installing
-npx mcp-npm-dependencies --help
+npx npm-dependencies-mcp --help
 
 # Start the server
-npx mcp-npm-dependencies start --port 3000
+npx npm-dependencies-mcp start --port 3000
 
 # Run analysis commands
-npx mcp-npm-dependencies structure
-npx mcp-npm-dependencies inconsistencies
+npx npm-dependencies-mcp structure
+npx npm-dependencies-mcp inconsistencies
 ```
 
 ### Local Development Setup
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/mcp-npm-dependencies.git
-cd mcp-npm-dependencies
+git clone https://github.com/yourusername/npm-dependencies-mcp.git
+cd npm-dependencies-mcp
 
 # Install dependencies
 npm install
