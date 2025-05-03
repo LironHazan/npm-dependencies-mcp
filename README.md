@@ -40,7 +40,7 @@ mcp-npm --help
 
 1. Start the server in your monorepo root:
 ```bash
-mcp-npm start --port 3000
+mcp-npm start --port 3000 --root /path/to/monorepo --packages-dir packages
 ```
 
 2. In another terminal, run commands to analyze your dependencies:
@@ -58,234 +58,128 @@ mcp-npm circular
 mcp-npm query "which packages are using lodash?"
 ```
 
+3. Try interactive mode:
+```bash
+mcp-npm interactive
+# or using the shorthand
+mcp-npm i
+```
+
 ## Overview
 This protocol provides a structured approach to analyze, query, and manage NPM dependencies across a JavaScript/TypeScript monorepo. It establishes a series of investigative questions and automated checks to maintain dependency health and understand dependency relationships.
 
-## Setup Requirements
+## Available Commands
 
-1. **Tools**:
-   - `npm` or `yarn` package manager
-   - `nx` or `lerna` (if using either for monorepo management)
-   - `depcheck` for unused dependency detection
-   - `dependency-cruiser` for visualization
-   - Optional: `madge` for circular dependency detection
+### Server Commands
 
-2. **Initial Configuration**:
-   ```bash
-   # Install analysis tools
-   npm install -g depcheck dependency-cruiser madge
-   ```
+- **Start the server**
+  ```bash
+  mcp-npm start [options]
+  ```
+  Options:
+  - `-p, --port <number>` - Port to run the server on (default: 3000)
+  - `-r, --root <path>` - Path to monorepo root (default: current directory)
+  - `-d, --packages-dir <dir>` - Directory containing packages (default: 'packages')
 
-## Protocol Questions
+- **Configure client settings**
+  ```bash
+  mcp-npm configure [options]
+  ```
+  Options:
+  - `-s, --server <url>` - Server URL to connect to
 
-### 1. Structure Analysis
+### Analysis Commands
 
-- **What is the overall dependency structure?**
-   ```bash
-   # Generate dependency graph visualization
-   depcruise --include-only "^packages" --output-type dot packages | dot -T svg > dependency-graph.svg
-   ```
+- **Show monorepo structure**
+  ```bash
+  mcp-npm structure
+  ```
+  Provides an overview of all packages in the monorepo, their versions, and dependency counts.
 
-- **How many packages exist in the monorepo?**
-   ```bash
-   # Count package.json files
-   find ./packages -name "package.json" -not -path "*/node_modules/*" | wc -l
-   ```
+- **Check for version inconsistencies**
+  ```bash
+  mcp-npm inconsistencies
+  ```
+  Identifies dependencies that have different versions across packages.
 
-- **What are the internal dependency relationships?**
-   ```bash
-   # List packages and their internal dependencies
-   for pkg in $(find ./packages -name "package.json" -not -path "*/node_modules/*"); do
-     echo "Package: $(dirname $pkg)"
-     grep -A 20 "dependencies\"|\"devDependencies\"" $pkg | grep -E "@your-scope|@your-namespace" || echo "  No internal dependencies"
-   done
-   ```
+- **Find unused dependencies**
+  ```bash
+  mcp-npm unused [options]
+  ```
+  Options:
+  - `-p, --package <name>` - Limit analysis to a specific package
 
-### 2. Version & Consistency Analysis
+- **List outdated dependencies**
+  ```bash
+  mcp-npm outdated
+  ```
+  Shows dependencies that have newer versions available.
 
-- **Are there duplicate dependencies with different versions?**
-   ```bash
-   # For yarn workspaces
-   yarn why package-name
-   
-   # For npm workspaces
-   npm ls package-name
-   ```
+- **Display dependency graph**
+  ```bash
+  mcp-npm graph [options]
+  ```
+  Options:
+  - `-p, --package <name>` - Focus graph on a specific package
 
-- **Which packages have version inconsistencies?**
-   ```bash
-   # Custom script to check versions across packages
-   node -e "
-   const fs = require('fs');
-   const path = require('path');
-   const packages = fs.readdirSync('./packages');
-   const deps = {};
-   
-   packages.forEach(pkg => {
-     try {
-       const pkgJson = require(path.join('./packages', pkg, 'package.json'));
-       Object.entries({...pkgJson.dependencies, ...pkgJson.devDependencies})
-         .forEach(([dep, version]) => {
-           deps[dep] = deps[dep] || [];
-           deps[dep].push({pkg, version});
-         });
-     } catch (e) {}
-   });
-   
-   Object.entries(deps)
-     .filter(([_, versions]) => new Set(versions.map(v => v.version)).size > 1)
-     .forEach(([dep, versions]) => {
-       console.log(`\n${dep} has inconsistent versions:`);
-       versions.forEach(v => console.log(`  ${v.pkg}: ${v.version}`));
-     });
-   "
-   ```
+- **Detect circular dependencies**
+  ```bash
+  mcp-npm circular
+  ```
+  Finds circular dependency chains in the monorepo.
 
-### 3. Health & Security Analysis
+- **Check security vulnerabilities**
+  ```bash
+  mcp-npm security
+  ```
+  Runs security audit on dependencies.
 
-- **Are there any unused dependencies?**
-   ```bash
-   # Run depcheck in each package
-   for dir in packages/*; do
-     if [ -d "$dir" ]; then
-       echo "Checking $dir"
-       (cd "$dir" && depcheck)
-     fi
-   done
-   ```
+- **Find where dependency is used**
+  ```bash
+  mcp-npm usedby <dependency>
+  ```
+  Lists all packages using the specified dependency.
 
-- **Which packages have security vulnerabilities?**
-   ```bash
-   # Run npm audit in each package
-   npm audit --workspace=*
-   ```
+- **Show project dependencies**
+  ```bash
+  mcp-npm project <name>
+  ```
+  Displays detailed dependency information for a specific project.
 
-- **Are there circular dependencies?**
-   ```bash
-   # Check for circular dependencies
-   madge --circular --extensions ts,js ./packages
-   ```
+- **Natural language query**
+  ```bash
+  mcp-npm query <text...>
+  ```
+  Ask questions in natural language about your dependencies.
 
-### 4. Dependency Metrics
+- **Interactive mode**
+  ```bash
+  mcp-npm interactive
+  # or
+  mcp-npm i
+  ```
+  Start an interactive session with all commands available.
 
-- **What is the dependency depth of each package?**
-   ```bash
-   # Calculate max dependency chain for each package
-   for pkg in packages/*; do
-     if [ -d "$pkg" ]; then
-       echo "Dependency depth for $(basename $pkg)"
-       (cd "$pkg" && madge --image dependency-depth.svg --exclude "node_modules" ./src)
-     fi
-   done
-   ```
+## Server API Endpoints
 
-- **Which external packages are most widely used?**
-   ```bash
-   # Count occurrences of external dependencies
-   find ./packages -name "package.json" -not -path "*/node_modules/*" -exec cat {} \; | 
-   grep -E '"dependencies"|"devDependencies"' -A 50 | 
-   grep -v -E '"dependencies"|"devDependencies"|{|}' | 
-   grep -v "@your-scope" | 
-   sort | uniq -c | sort -nr | head -20
-   ```
+The MCP NPM Dependencies server provides these API endpoints:
 
-### 5. Update & Maintenance Analysis
+- `GET /api/health` - Check server health
+- `GET /api/structure` - Get monorepo structure
+- `GET /api/inconsistencies` - Get version inconsistencies
+- `GET /api/unused?package=<name>` - Get unused dependencies
+- `GET /api/outdated` - Get outdated dependencies
+- `GET /api/graph/<package>` - Get dependency graph
+- `GET /api/circular` - Get circular dependencies
+- `GET /api/security` - Get security vulnerabilities
+- `GET /api/usedby/<dependency>` - Get packages using dependency
+- `GET /api/project-dependencies/<project>` - Get project dependencies
+- `POST /api/query` - Process natural language query
+- `POST /api/cache/invalidate` - Invalidate server cache
 
-- **Which packages are outdated?**
-   ```bash
-   # Check for outdated dependencies
-   npm outdated --workspace=*
-   ```
+## Integration with CI/CD
 
-- **What would be the impact of updating package X?**
-   ```bash
-   # List all packages that depend on X
-   grep -r "\"package-x\":" --include="package.json" ./packages
-   ```
-
-## Actions Based on Protocol Findings
-
-1. **Version Alignment**
-   - Update inconsistent dependency versions to align across packages
-   - Consider using a tool like `syncpack` to enforce consistency
-
-2. **Dependency Cleanup**
-   - Remove unused dependencies identified by depcheck
-   - Extract commonly used dependencies to shared packages
-
-3. **Security Remediation**
-   - Schedule updates for dependencies with security issues
-   - Isolate packages with vulnerable dependencies when updates aren't immediately possible
-
-4. **Dependency Graph Optimization**
-   - Break circular dependencies
-   - Reduce dependency depth where possible
-   - Consider restructuring package boundaries based on dependency analysis
-
-## Automation
-
-### Create a Script for Regular Analysis
-
-```javascript
-// dependency-report.js
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-
-// Output directory
-const reportDir = path.join(__dirname, 'dependency-reports');
-if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir);
-
-// Run the analysis
-const date = new Date().toISOString().split('T')[0];
-const reportFile = path.join(reportDir, `dependency-report-${date}.md`);
-
-// Sections to generate
-const sections = [
-  {
-    title: "Package Count",
-    command: "find ./packages -name \"package.json\" -not -path \"*/node_modules/*\" | wc -l"
-  },
-  {
-    title: "Version Inconsistencies",
-    command: "node ./scripts/check-version-consistency.js"
-  },
-  {
-    title: "Unused Dependencies",
-    command: "node ./scripts/find-unused-deps.js"
-  },
-  {
-    title: "Outdated Packages",
-    command: "npm outdated --workspace=* --json || echo '{}'"
-  },
-  {
-    title: "Security Vulnerabilities",
-    command: "npm audit --json || echo '{}'"
-  },
-  {
-    title: "Circular Dependencies",
-    command: "madge --circular --extensions ts,js ./packages || echo 'None found'"
-  }
-];
-
-// Generate report
-let report = `# Dependency Analysis Report - ${date}\n\n`;
-
-sections.forEach(section => {
-  report += `## ${section.title}\n\n`;
-  try {
-    const output = execSync(section.command).toString();
-    report += "```\n" + output + "\n```\n\n";
-  } catch (error) {
-    report += `Error: ${error.message}\n\n`;
-  }
-});
-
-fs.writeFileSync(reportFile, report);
-console.log(`Report generated at ${reportFile}`);
-```
-
-### Integration with CI/CD
+You can integrate MCP NPM Dependencies into your CI/CD pipeline to monitor dependency health automatically:
 
 ```yaml
 # .github/workflows/dependency-analysis.yml
@@ -311,66 +205,78 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          npm install -g depcheck dependency-cruiser madge
+          npm install -g mcp-npm-dependencies
+      
+      - name: Start MCP server
+        run: mcp-npm start &
+        
+      - name: Wait for server to start
+        run: sleep 5
       
       - name: Run dependency analysis
-        run: node scripts/dependency-report.js
+        run: |
+          mcp-npm structure > report-structure.md
+          mcp-npm inconsistencies > report-inconsistencies.md
+          mcp-npm circular > report-circular.md
+          mcp-npm security > report-security.md
       
-      - name: Archive report
+      - name: Archive reports
         uses: actions/upload-artifact@v3
         with:
-          name: dependency-report
-          path: dependency-reports/
+          name: dependency-reports
+          path: report-*.md
 ```
 
-## Custom Analysis Examples
+## Features and Benefits
 
-### Finding Direct vs Transitive Dependencies
+- **Centralized Dependency Management**: Monitor all dependencies across your monorepo in one place
+- **Inconsistency Detection**: Quickly find and fix version inconsistencies
+- **Natural Language Interface**: Ask questions about your dependencies in plain English
+- **Security Monitoring**: Stay on top of security vulnerabilities
+- **Interactive Mode**: Explore dependencies through an interactive CLI
+- **Visualization**: Generate dependency graphs to understand relationships
+- **API Server**: Use the server API for custom integrations
+- **Cached Analysis**: Fast responses thanks to intelligent caching
 
-```javascript
-// direct-vs-transitive.js
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+## System Requirements
 
-const packages = fs.readdirSync('./packages').filter(p => 
-  fs.statSync(path.join('./packages', p)).isDirectory()
-);
+- Node.js 14 or higher
+- NPM 7 or higher
+- For advanced features: `depcheck`, `dependency-cruiser`, and `madge`
 
-packages.forEach(pkg => {
-  const pkgPath = path.join('./packages', pkg);
-  if (!fs.existsSync(path.join(pkgPath, 'package.json'))) return;
-  
-  console.log(`\n=== ${pkg} ===`);
-  
-  // Get direct dependencies
-  const pkgJson = require(path.join(pkgPath, 'package.json'));
-  const directDeps = new Set([
-    ...Object.keys(pkgJson.dependencies || {}),
-    ...Object.keys(pkgJson.devDependencies || {})
-  ]);
-  
-  console.log(`Direct dependencies: ${directDeps.size}`);
-  
-  // Get all installed dependencies
-  try {
-    const allDeps = new Set(
-      execSync('npm ls --all --parseable', { cwd: pkgPath })
-        .toString()
-        .split('\n')
-        .filter(Boolean)
-        .map(p => {
-          const parts = p.split('node_modules/');
-          return parts[parts.length - 1].split('/')[0];
-        })
-    );
-    
-    // Remove direct dependencies to get transitive only
-    directDeps.forEach(d => allDeps.delete(d));
-    
-    console.log(`Transitive dependencies: ${allDeps.size}`);
-  } catch (e) {
-    console.log(`Error: ${e.message}`);
-  }
-});
+## Configuration
+
+MCP NPM Dependencies stores configuration in `~/.mcp-npm-config.json`. You can modify it directly or use the `configure` command.
+
+## Examples
+
+### Finding unused dependencies in a specific package
+
+```bash
+mcp-npm unused --package @myorg/ui-components
+```
+
+### Identifying which packages use a specific dependency
+
+```bash
+mcp-npm usedby lodash
+```
+
+### Detailed analysis of a specific project
+
+```bash
+mcp-npm project @myorg/api-service
+```
+
+### Natural language queries
+
+```bash
+# Find what uses React
+mcp-npm query "which packages depend on react?"
+
+# Check for specific version issues
+mcp-npm query "are there any packages using different versions of lodash?"
+
+# Complex dependency questions
+mcp-npm query "what would be affected if I update axios to the latest version?"
 ```
