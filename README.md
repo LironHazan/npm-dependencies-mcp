@@ -1,4 +1,4 @@
-# Monorepo NPM Dependency Analysis Protocol
+# Monorepo NPM Dependency Analysis MCP
 
 ## Installation
 
@@ -18,6 +18,19 @@ npm install --save-dev mcp-npm-dependencies
 
 # Use with npx
 npx mcp-npm --help
+```
+
+### Run Directly with npx (No Installation)
+```bash
+# Run directly without installing
+npx mcp-npm-dependencies --help
+
+# Start the server
+npx mcp-npm-dependencies start --port 3000
+
+# Run analysis commands
+npx mcp-npm-dependencies structure
+npx mcp-npm-dependencies inconsistencies
 ```
 
 ### Local Development Setup
@@ -66,7 +79,7 @@ mcp-npm i
 ```
 
 ## Overview
-This protocol provides a structured approach to analyze, query, and manage NPM dependencies across a JavaScript/TypeScript monorepo. It establishes a series of investigative questions and automated checks to maintain dependency health and understand dependency relationships.
+This is a comprehensive tool that provides powerful analysis, querying, and management capabilities for NPM dependencies in JavaScript/TypeScript monorepos through an MCP (Model Context Protocol) server. It offers an intuitive interface for running automated checks to maintain dependency health, understand relationships between packages, and make informed decisions about your dependency management strategy.
 
 ## Available Commands
 
@@ -247,6 +260,68 @@ jobs:
 ## Configuration
 
 MCP NPM Dependencies stores configuration in `~/.mcp-npm-config.json`. You can modify it directly or use the `configure` command.
+
+## Cursor Editor Integration
+
+You can integrate MCP NPM Dependencies with the Cursor editor by adding the following MCP configuration to your Cursor settings:
+
+```json
+{
+  "mcp": {
+    "monorepo-deps": {
+      "server": {
+        "type": "http",
+        "url": "http://localhost:3000/api",
+        "description": "Monorepo NPM Dependencies Analysis"
+      },
+      "commands": [
+        {
+          "name": "Show Monorepo Structure",
+          "command": "structure",
+          "description": "Shows an overview of all packages in the monorepo"
+        },
+        {
+          "name": "Check Version Inconsistencies",
+          "command": "inconsistencies",
+          "description": "Identifies dependencies with different versions across packages"
+        },
+        {
+          "name": "Find Unused Dependencies",
+          "command": "unused",
+          "description": "Detects unused dependencies across packages"
+        },
+        {
+          "name": "Check Circular Dependencies",
+          "command": "circular",
+          "description": "Finds circular dependency chains in the monorepo"
+        },
+        {
+          "name": "Natural Language Query",
+          "command": "query",
+          "description": "Ask questions about your dependencies in natural language",
+          "parameters": [
+            {
+              "name": "query",
+              "type": "string",
+              "description": "Your natural language query"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+This configuration allows you to:
+1. Connect Cursor to your running MCP NPM Dependencies server
+2. Access key analysis commands directly from the Cursor interface
+3. Make natural language queries about your dependencies without leaving your editor
+
+To use this integration:
+1. Start the MCP NPM Dependencies server
+2. Configure Cursor to use the MCP configuration above
+3. Access commands through Cursor's command palette
 
 ## Examples
 
