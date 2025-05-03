@@ -1,0 +1,28 @@
+# Development and test files
+test/
+test-monorepo/
+.github/
+.vscode/
+.idea/
+.editorconfig
+.eslintrc
+.gitignore
+.prettierrc
+jest.config.js
+CONTRIBUTING.md
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage
+coverage/
+.nyc_output
+
+# Temporary files
+tmp/
+temp/
+.DS_Store 
