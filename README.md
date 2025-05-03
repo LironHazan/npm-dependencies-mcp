@@ -1,5 +1,9 @@
 # Monorepo NPM Dependency Analysis MCP
 
+[![npm version](https://img.shields.io/npm/v/npm-dependencies-mcp.svg)](https://www.npmjs.com/package/npm-dependencies-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+
 ## Installation
 
 ### Global Installation
