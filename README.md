@@ -190,56 +190,6 @@ The MCP NPM Dependencies server provides these API endpoints:
 - `POST /api/query` - Process natural language query
 - `POST /api/cache/invalidate` - Invalidate server cache
 
-## Integration with CI/CD
-
-You can integrate MCP NPM Dependencies into your CI/CD pipeline to monitor dependency health automatically:
-
-```yaml
-# .github/workflows/dependency-analysis.yml
-name: Dependency Analysis
-
-on:
-  schedule:
-    - cron: '0 0 * * 1'  # Run weekly on Monday
-  workflow_dispatch:  # Allow manual trigger
-
-jobs:
-  analyze:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: |
-          npm ci
-          npm install -g mcp-npm-dependencies
-      
-      - name: Start MCP server
-        run: mcp-npm start &
-        
-      - name: Wait for server to start
-        run: sleep 5
-      
-      - name: Run dependency analysis
-        run: |
-          mcp-npm structure > report-structure.md
-          mcp-npm inconsistencies > report-inconsistencies.md
-          mcp-npm circular > report-circular.md
-          mcp-npm security > report-security.md
-      
-      - name: Archive reports
-        uses: actions/upload-artifact@v3
-        with:
-          name: dependency-reports
-          path: report-*.md
-```
-
 ## Features and Benefits
 
 - **Centralized Dependency Management**: Monitor all dependencies across your monorepo in one place
@@ -250,12 +200,6 @@ jobs:
 - **Visualization**: Generate dependency graphs to understand relationships
 - **API Server**: Use the server API for custom integrations
 - **Cached Analysis**: Fast responses thanks to intelligent caching
-
-## System Requirements
-
-- Node.js 14 or higher
-- NPM 7 or higher
-- For advanced features: `depcheck`, `dependency-cruiser`, and `madge`
 
 ## Configuration
 
@@ -272,38 +216,33 @@ You can integrate MCP NPM Dependencies with the Cursor editor by adding the foll
       "server": {
         "type": "http",
         "url": "http://localhost:3000/api",
-        "description": "Monorepo NPM Dependencies Analysis"
+        "description": "Monorepo NPM Dependencies"
       },
       "commands": [
         {
-          "name": "Show Monorepo Structure",
+          "name": "Structure",
           "command": "structure",
-          "description": "Shows an overview of all packages in the monorepo"
+          "description": "Show monorepo structure"
         },
         {
-          "name": "Check Version Inconsistencies",
+          "name": "Inconsistencies",
           "command": "inconsistencies",
-          "description": "Identifies dependencies with different versions across packages"
+          "description": "Find version inconsistencies"
         },
         {
-          "name": "Find Unused Dependencies",
-          "command": "unused",
-          "description": "Detects unused dependencies across packages"
-        },
-        {
-          "name": "Check Circular Dependencies",
+          "name": "Circular",
           "command": "circular",
-          "description": "Finds circular dependency chains in the monorepo"
+          "description": "Find circular dependencies"
         },
         {
-          "name": "Natural Language Query",
+          "name": "Query",
           "command": "query",
-          "description": "Ask questions about your dependencies in natural language",
+          "description": "Ask about dependencies",
           "parameters": [
             {
               "name": "query",
               "type": "string",
-              "description": "Your natural language query"
+              "description": "Your question"
             }
           ]
         }
@@ -313,15 +252,12 @@ You can integrate MCP NPM Dependencies with the Cursor editor by adding the foll
 }
 ```
 
-This configuration allows you to:
-1. Connect Cursor to your running MCP NPM Dependencies server
-2. Access key analysis commands directly from the Cursor interface
-3. Make natural language queries about your dependencies without leaving your editor
+This configuration connects Cursor to your MCP NPM Dependencies server, allowing you to run analysis commands and make natural language queries directly from your editor.
 
 To use this integration:
-1. Start the MCP NPM Dependencies server
-2. Configure Cursor to use the MCP configuration above
-3. Access commands through Cursor's command palette
+1. Start the MCP server
+2. Configure Cursor with the MCP configuration
+3. Access commands via Cursor's command palette
 
 ## Examples
 
