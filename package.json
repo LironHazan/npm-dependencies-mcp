@@ -12,7 +12,9 @@
     "client": "node bin/mcp-npm-cli.js interactive",
     "nx-tools": "node bin/nx-tools.js",
     "test": "node test/index.test.js",
-    "prepublishOnly": "npm test"
+    "release": "npm test && npm publish",
+    "prepublishOnly": "npm test",
+    "pack": "npm pack"
   },
   "files": [
     "bin/",

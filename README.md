@@ -1,157 +1,293 @@
-# Nx Monorepo Dependency Analysis Tools
-
-A powerful suite of tools for analyzing and visualizing dependencies in Nx monorepos, especially when using a single-version approach with dependencies managed at the root level.
-
-[![npm version](https://img.shields.io/npm/v/npm-dependencies-mcp.svg)](https://www.npmjs.com/package/npm-dependencies-mcp)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-## Documentation
-
-For detailed documentation, please see the [docs directory](./docs/):
-- [Complete NX Tools Documentation](./docs/NX-TOOLS.md)
-
-## Tools Included
-
-### 1. Nx Graph Visualizer (`nx-graph-visualizer.js`)
-
-A tool that generates an interactive HTML visualization of your Nx monorepo's project dependency graph.
-
-**Features:**
-- Interactive D3.js visualization
-- Zoom and pan capabilities
-- Project details on hover
-- Visual representation of project relationships
-
-**Usage:**
-```bash
-./nx-graph-visualizer.js generate --root /path/to/nx/repo --output dependency-graph.html --browser
-```
-
-**Options:**
-- `--root <path>`: Path to the Nx monorepo root (default: current directory)
-- `--output <file>`: Output HTML file name (default: `nx-dep-graph.html`)
-- `--browser`: Automatically open the generated HTML in your default browser
-
-### 2. Nx Project Dependencies Analyzer (`nx-project-deps.js`)
-
-A tool that analyzes which npm packages are actually used by each project in your Nx monorepo by scanning source files for import statements.
-
-**Features:**
-- Scans all projects in the monorepo
-- Identifies which npm packages are imported in each project
-- Matches imports with root-level dependencies
-- Generates an interactive HTML report with charts
-- Identifies potential unused or missing dependencies
-
-**Usage:**
-```bash
-# Analyze all projects
-./nx-project-deps.js analyze --root /path/to/nx/repo --output report.html --browser
-
-# Analyze a specific project
-./nx-project-deps.js project --root /path/to/nx/repo --project project-name
-```
-
-**Options for 'analyze' command:**
-- `--root, -r <path>`: Path to the Nx monorepo root (default: current directory)
-- `--verbose, -v`: Enable verbose output (default: false)
-- `--output, -o <file>`: Output HTML report file (default: `nx-project-deps-report.html`)
-- `--browser, -b`: Automatically open the generated HTML in your default browser
-
-**Options for 'project' command:**
-- `--root, -r <path>`: Path to the Nx monorepo root (default: current directory)
-- `--verbose, -v`: Enable verbose output (default: false)
-- `--project, -p <name>`: Project name to analyze (required)
-
-### 3. Nx Root Analyzer (`nx-root-analyzer.js`)
-
-A tool that analyzes the overall structure of an Nx monorepo with dependencies managed at the root level.
-
-**Features:**
-- Analyzes monorepo structure and metadata
-- Identifies frameworks used in the project
-- Provides dependency counts and distribution
-- Shows project types and their relationships
-- Generates an interactive HTML report with charts and graphs
-
-**Usage:**
-```bash
-./nx-root-analyzer.js analyze --root /path/to/nx/repo --output report.html --browser
-```
-
-**Options:**
-- `--root, -r <path>`: Path to the Nx monorepo root (default: current directory)
-- `--apps, -a <dir>`: Apps directory name (default: 'apps')
-- `--libs, -l <dir>`: Libraries directory name (default: 'libs')
-- `--verbose, -v`: Enable verbose output (default: false)
-- `--output, -o <file>`: Output HTML report file
-- `--browser, -b`: Automatically open the generated HTML in your default browser
-
-### 4. Nx Vulnerability Scanner (`nx-vuln-scanner.js`)
-
-NEW! A tool that scans dependencies for security vulnerabilities in your Nx monorepo.
-
-**Features:**
-- Scans for security vulnerabilities in npm dependencies
-- Categorizes vulnerabilities by severity (critical, high, moderate, low)
-- Provides detailed information about each vulnerability
-- Suggests remediation steps
-- Generates an interactive HTML report with charts and filtering options
+# Monorepo NPM Dependency Analysis MCP
 
 ## Installation
 
-### Global Installation (Recommended)
-
+### Global Installation
 ```bash
+# Install globally
 npm install -g npm-dependencies-mcp
+
+# Now you can use the mcp-npm command from anywhere
+mcp-npm --help
 ```
 
-This will make the `nx-tools` and `mcp-npm` commands available globally.
-
-### Local Installation
-
+### Local Installation in Your Project
 ```bash
-npm install npm-dependencies-mcp
+# Install as a development dependency
+npm install --save-dev npm-dependencies-mcp
+
+# Use with npx
+npx mcp-npm --help
 ```
 
-When installed locally, you can access the tools via npx:
-
+### Run Directly with npx (No Installation)
 ```bash
-npx nx-tools graph --root /path/to/monorepo
+# Run directly without installing
+npx npm-dependencies-mcp --help
+
+# Start the server
+npx npm-dependencies-mcp start --port 3000
+
+# Run analysis commands
+npx npm-dependencies-mcp structure
+npx npm-dependencies-mcp inconsistencies
 ```
 
-### Direct Usage Without Installation
-
+### Local Development Setup
 ```bash
-npx npm-dependencies-mcp nx-tools graph --root /path/to/monorepo
+# Clone the repository
+git clone https://github.com/yourusername/npm-dependencies-mcp.git
+cd npm-dependencies-mcp
+
+# Install dependencies
+npm install
+
+# Link the package globally
+npm link
+
+# Now you can use the command
+mcp-npm --help
 ```
 
 ## Quick Start
 
-After installation, you can use all these tools through the `nx-tools` command line interface:
-
+1. Start the server in your monorepo root:
 ```bash
-# Generate interactive dependency graph
-nx-tools graph --root /path/to/monorepo --browser
-
-# Analyze project dependencies
-nx-tools deps --root /path/to/monorepo --browser
-
-# Analyze overall monorepo structure
-nx-tools analyze --root /path/to/monorepo --browser
-
-# Scan for security vulnerabilities
-nx-tools vuln --root /path/to/monorepo --browser
+mcp-npm start --port 3000 --root /path/to/monorepo --packages-dir packages
 ```
 
-All reports are saved in the `deps-reports` directory by default and can be opened in any modern web browser.
+2. In another terminal, run commands to analyze your dependencies:
+```bash
+# Show monorepo structure
+mcp-npm structure
 
-## Browser Integration
+# Check for version inconsistencies
+mcp-npm inconsistencies
 
-All tools now include browser integration capabilities that allow you to automatically open the generated HTML reports in your default web browser. This works across all major operating systems:
+# Find circular dependencies
+mcp-npm circular
 
-- macOS: Uses the `open` command
-- Windows: Uses the `start` command
-- Linux: Uses the `xdg-open` command
+# Explore with natural language queries
+mcp-npm query "which packages are using lodash?"
+```
 
-To use this feature, simply add the `--browser` flag to any command that generates an HTML report.
+3. Try interactive mode:
+```bash
+mcp-npm interactive
+# or using the shorthand
+mcp-npm i
+```
+
+## Overview
+This is a comprehensive tool that provides powerful analysis, querying, and management capabilities for NPM dependencies in JavaScript/TypeScript monorepos through an MCP (Model Context Protocol) server. It offers an intuitive interface for running automated checks to maintain dependency health, understand relationships between packages, and make informed decisions about your dependency management strategy.
+
+## Available Commands
+
+### Server Commands
+
+- **Start the server**
+  ```bash
+  mcp-npm start [options]
+  ```
+  Options:
+  - `-p, --port <number>` - Port to run the server on (default: 3000)
+  - `-r, --root <path>` - Path to monorepo root (default: current directory)
+  - `-d, --packages-dir <dir>` - Directory containing packages (default: 'packages')
+
+- **Configure client settings**
+  ```bash
+  mcp-npm configure [options]
+  ```
+  Options:
+  - `-s, --server <url>` - Server URL to connect to
+
+### Analysis Commands
+
+- **Show monorepo structure**
+  ```bash
+  mcp-npm structure
+  ```
+  Provides an overview of all packages in the monorepo, their versions, and dependency counts.
+
+- **Check for version inconsistencies**
+  ```bash
+  mcp-npm inconsistencies
+  ```
+  Identifies dependencies that have different versions across packages.
+
+- **Find unused dependencies**
+  ```bash
+  mcp-npm unused [options]
+  ```
+  Options:
+  - `-p, --package <name>` - Limit analysis to a specific package
+
+- **List outdated dependencies**
+  ```bash
+  mcp-npm outdated
+  ```
+  Shows dependencies that have newer versions available.
+
+- **Display dependency graph**
+  ```bash
+  mcp-npm graph [options]
+  ```
+  Options:
+  - `-p, --package <name>` - Focus graph on a specific package
+
+- **Detect circular dependencies**
+  ```bash
+  mcp-npm circular
+  ```
+  Finds circular dependency chains in the monorepo.
+
+- **Check security vulnerabilities**
+  ```bash
+  mcp-npm security
+  ```
+  Runs security audit on dependencies.
+
+- **Find where dependency is used**
+  ```bash
+  mcp-npm usedby <dependency>
+  ```
+  Lists all packages using the specified dependency.
+
+- **Show project dependencies**
+  ```bash
+  mcp-npm project <name>
+  ```
+  Displays detailed dependency information for a specific project.
+
+- **Natural language query**
+  ```bash
+  mcp-npm query <text...>
+  ```
+  Ask questions in natural language about your dependencies.
+
+- **Interactive mode**
+  ```bash
+  mcp-npm interactive
+  # or
+  mcp-npm i
+  ```
+  Start an interactive session with all commands available.
+
+## Server API Endpoints
+
+The MCP NPM Dependencies server provides these API endpoints:
+
+- `GET /api/health` - Check server health
+- `GET /api/structure` - Get monorepo structure
+- `GET /api/inconsistencies` - Get version inconsistencies
+- `GET /api/unused?package=<name>` - Get unused dependencies
+- `GET /api/outdated` - Get outdated dependencies
+- `GET /api/graph/<package>` - Get dependency graph
+- `GET /api/circular` - Get circular dependencies
+- `GET /api/security` - Get security vulnerabilities
+- `GET /api/usedby/<dependency>` - Get packages using dependency
+- `GET /api/project-dependencies/<project>` - Get project dependencies
+- `POST /api/query` - Process natural language query
+- `POST /api/cache/invalidate` - Invalidate server cache
+
+## Features and Benefits
+
+- **Centralized Dependency Management**: Monitor all dependencies across your monorepo in one place
+- **Inconsistency Detection**: Quickly find and fix version inconsistencies
+- **Natural Language Interface**: Ask questions about your dependencies in plain English
+- **Security Monitoring**: Stay on top of security vulnerabilities
+- **Interactive Mode**: Explore dependencies through an interactive CLI
+- **Visualization**: Generate dependency graphs to understand relationships
+- **API Server**: Use the server API for custom integrations
+- **Cached Analysis**: Fast responses thanks to intelligent caching
+
+## Configuration
+
+MCP NPM Dependencies stores configuration in `~/.mcp-npm-config.json`. You can modify it directly or use the `configure` command.
+
+## Cursor Editor Integration
+
+You can integrate MCP NPM Dependencies with the Cursor editor by adding the following MCP configuration to your Cursor settings:
+
+```json
+{
+  "mcp": {
+    "monorepo-deps": {
+      "server": {
+        "type": "http",
+        "url": "http://localhost:3000/api",
+        "description": "Monorepo NPM Dependencies"
+      },
+      "commands": [
+        {
+          "name": "Structure",
+          "command": "structure",
+          "description": "Show monorepo structure"
+        },
+        {
+          "name": "Inconsistencies",
+          "command": "inconsistencies",
+          "description": "Find version inconsistencies"
+        },
+        {
+          "name": "Circular",
+          "command": "circular",
+          "description": "Find circular dependencies"
+        },
+        {
+          "name": "Query",
+          "command": "query",
+          "description": "Ask about dependencies",
+          "parameters": [
+            {
+              "name": "query",
+              "type": "string",
+              "description": "Your question"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+This configuration connects Cursor to your MCP NPM Dependencies server, allowing you to run analysis commands and make natural language queries directly from your editor.
+
+To use this integration:
+1. Start the MCP server
+2. Configure Cursor with the MCP configuration
+3. Access commands via Cursor's command palette
+
+## Examples
+
+### Finding unused dependencies in a specific package
+
+```bash
+mcp-npm unused --package @myorg/ui-components
+```
+
+### Identifying which packages use a specific dependency
+
+```bash
+mcp-npm usedby lodash
+```
+
+### Detailed analysis of a specific project
+
+```bash
+mcp-npm project @myorg/api-service
+```
+
+### Natural language queries
+
+```bash
+# Find what uses React
+mcp-npm query "which packages depend on react?"
+
+# Check for specific version issues
+mcp-npm query "are there any packages using different versions of lodash?"
+
+# Complex dependency questions
+mcp-npm query "what would be affected if I update axios to the latest version?"
+```
