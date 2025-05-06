@@ -5,11 +5,16 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { program } = require('commander');
 const { saveAndOpenReport, generateTimestampedFilename } = require('../utils/report-utils');
+const chalk = require('chalk');
+
+// Add axios for fetching npm versions
+const axios = require('axios');
 
 class NxProjectDepsAnalyzer {
   constructor(options = {}) {
     this.rootDir = options.rootDir || process.cwd();
     this.verbose = options.verbose || false;
+    this.latestVersions = {}; // Cache for latest versions
   }
 
   /**
@@ -271,29 +276,49 @@ class NxProjectDepsAnalyzer {
 
   /**
    * Analyze all projects in the workspace
+   * @param {boolean} npmOnly - If true, only include projects with npm dependencies
    */
-  analyzeAllProjects() {
+  analyzeAllProjects(npmOnly = false) {
     const projects = this.getProjects();
     console.log(`\n🔍 Found ${projects.length} projects in Nx workspace`);
     
     const results = {};
     const depUsageCount = {};
+    let npmProjectCount = 0;
+    let skippedProjectCount = 0;
     
     projects.forEach(projectName => {
       const analysis = this.analyzeProject(projectName);
       if (analysis) {
-        results[projectName] = analysis;
+        const hasDependencies = Object.keys(analysis.dependencies).length > 0;
         
-        // Count dependency usage across projects
-        Object.keys(analysis.dependencies).forEach(dep => {
-          depUsageCount[dep] = (depUsageCount[dep] || 0) + 1;
-        });
+        // If npmOnly is true, only include projects with npm dependencies
+        if (!npmOnly || hasDependencies) {
+          results[projectName] = analysis;
+          
+          if (hasDependencies) {
+            npmProjectCount++;
+          }
+          
+          // Count dependency usage across projects
+          Object.keys(analysis.dependencies).forEach(dep => {
+            depUsageCount[dep] = (depUsageCount[dep] || 0) + 1;
+          });
+        } else {
+          skippedProjectCount++;
+          this.log(`Skipping project ${projectName} (no npm dependencies)`);
+        }
       }
     });
+    
+    if (npmOnly) {
+      console.log(`\n📦 Showing ${npmProjectCount} npm projects (skipped ${skippedProjectCount} projects with no dependencies)`);
+    }
     
     // Sort dependencies by usage count
     const sortedDeps = Object.entries(depUsageCount)
       .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
       .reduce((obj, [key, value]) => {
         obj[key] = value;
         return obj;
@@ -302,7 +327,8 @@ class NxProjectDepsAnalyzer {
     return {
       projects: results,
       depUsageCount: sortedDeps,
-      totalProjects: Object.keys(results).length
+      totalProjects: Object.keys(results).length,
+      npmOnly: npmOnly
     };
   }
 
@@ -310,12 +336,34 @@ class NxProjectDepsAnalyzer {
    * Generate HTML report of projects and their dependencies
    */
   generateHtmlReport(analysisResults) {
-    const { projects, depUsageCount } = analysisResults;
+    const { projects, depUsageCount, npmOnly } = analysisResults;
+    
+    // Initialize latestVersions if missing
+    Object.values(projects).forEach(project => {
+      if (!project.latestVersions) {
+        project.latestVersions = {};
+      }
+    });
+    
+    // Store latestVersions in the instance for use in the report
+    this.latestVersionsCache = {};
+    
+    // Collect latest versions from all projects
+    Object.values(projects).forEach(project => {
+      if (project.latestVersions) {
+        Object.entries(project.latestVersions).forEach(([dep, version]) => {
+          if (version) {
+            this.latestVersionsCache[dep] = version;
+          }
+        });
+      }
+    });
     
     // Sort projects by dependency count
-    const sortedProjects = Object.values(projects).sort((a, b) => 
-      Object.keys(b.dependencies).length - Object.keys(a.dependencies).length
-    );
+    const sortedProjects = Object.entries(projects)
+      .map(([project, projectData]) => ({ project, count: Object.keys(projectData.dependencies).length }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
     
     // Generate HTML
     return `
@@ -324,7 +372,7 @@ class NxProjectDepsAnalyzer {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nx Monorepo Dependencies Analysis</title>
+    <title>Nx Monorepo Dependencies Analysis ${npmOnly ? '(npm projects only)' : ''}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
@@ -342,17 +390,40 @@ class NxProjectDepsAnalyzer {
         
         .dashboard {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        @media (min-width: 992px) {
+            .dashboard {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
+        canvas {
+            min-height: 300px;
         }
         
         .card {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            height: 300px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.07);
+            margin-bottom: 1.5rem;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: #333;
+            font-weight: 500;
         }
         
         table {
@@ -390,12 +461,13 @@ class NxProjectDepsAnalyzer {
         
         .badge {
             display: inline-block;
-            padding: 3px 7px;
+            padding: 5px 10px;
             border-radius: 12px;
             font-size: 12px;
             font-weight: 600;
-            margin-right: 5px;
-            margin-bottom: 5px;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            white-space: nowrap;
         }
         
         .badge-primary {
@@ -462,18 +534,127 @@ class NxProjectDepsAnalyzer {
         .project-card.expanded .project-body {
             display: block;
         }
+        
+        .badge small {
+            opacity: 0.8;
+            font-weight: 400;
+            margin-left: 3px;
+        }
+        
+        code {
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 90%;
+            color: #e83e8c;
+        }
+
+        .deps-table-container {
+            margin-bottom: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            border-radius: 4px;
+            border: 1px solid #eee;
+        }
+        
+        .deps-table {
+            width: 100%;
+            font-size: 13px;
+            border-collapse: collapse;
+            margin-bottom: 0;
+        }
+        
+        .deps-table th {
+            position: sticky;
+            top: 0;
+            background-color: #f8f9fa;
+            z-index: 10;
+            font-weight: 600;
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .deps-table th:hover {
+            background-color: #e9ecef;
+        }
+        
+        .deps-table th::after {
+            content: "";
+            margin-left: 5px;
+        }
+        
+        .deps-table th.sort-asc::after {
+            content: "▲";
+            font-size: 10px;
+        }
+        
+        .deps-table th.sort-desc::after {
+            content: "▼";
+            font-size: 10px;
+        }
+        
+        .deps-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .deps-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .deps-table tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        .version-outdated {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        
+        .version-current {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .version-unknown {
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .filter-notice {
+            background-color: #e7f5fe;
+            color: #004085;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #b8daff;
+        }
+        
+        .filter-notice p {
+            margin: 0;
+        }
     </style>
 </head>
 <body>
     <h1>Nx Monorepo Dependencies Analysis</h1>
+    ${npmOnly ? `
+    <div class="filter-notice">
+        <p>🔍 <strong>Filter active:</strong> Showing only projects with npm dependencies</p>
+    </div>
+    ` : ''}
     
     <div class="dashboard">
         <div class="card">
-            <h3>Most Used Dependencies</h3>
+            <h3>Top 5 Most Used Dependencies</h3>
             <canvas id="depUsageChart"></canvas>
         </div>
         <div class="card">
-            <h3>Dependencies Per Project</h3>
+            <h3>Top 5 Projects with Most Dependencies</h3>
             <canvas id="projectDepsChart"></canvas>
         </div>
     </div>
@@ -487,25 +668,46 @@ class NxProjectDepsAnalyzer {
     
     <div id="projectList">
         ${sortedProjects.map(project => `
-            <div class="project-card" data-project="${project.name}">
+            <div class="project-card" data-project="${project.project}">
                 <div class="project-header">
-                    <h3 class="project-name">${project.name}</h3>
+                    <h3 class="project-name">${project.project}</h3>
                     <div class="project-meta">
                         <span class="badge badge-${project.type === 'application' ? 'primary' : 'success'}">
                             ${project.type}
                         </span>
-                        <span>${Object.keys(project.dependencies).length} dependencies</span>
+                        <span>${project.count} dependencies</span>
                     </div>
                     <button class="expand-btn">Details</button>
                 </div>
                 <div class="project-body">
                     <p><strong>Project root:</strong> ${project.root}</p>
-                    <h4>Dependencies (${Object.keys(project.dependencies).length}):</h4>
-                    <div class="dep-list">
-                        ${Object.entries(project.dependencies).map(([dep, version]) => 
-                            `<span class="badge badge-primary" title="${version}">${dep}</span>`
-                        ).join('')}
+                    <h4>Dependencies (${project.count}):</h4>
+                    ${project.count > 0 ? `
+                    <div class="deps-table-container">
+                        <table class="deps-table">
+                            <thead>
+                                <tr>
+                                    <th>Dependency</th>
+                                    <th>Current Version</th>
+                                    <th>Latest Version</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${Object.entries(project.dependencies).map(([dep, version]) => `
+                                <tr>
+                                    <td>${dep}</td>
+                                    <td><code>${version}</code></td>
+                                    <td>
+                                        ${this.latestVersionsCache && this.latestVersionsCache[dep] ? 
+                                            `<code class="${version !== this.latestVersionsCache[dep] ? 'version-outdated' : 'version-current'}">${this.latestVersionsCache[dep]}</code>` : 
+                                            '<span class="version-unknown">N/A</span>'}
+                                    </td>
+                                </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
                     </div>
+                    ` : '<p>No dependencies found.</p>'}
                     ${project.unmatchedImports.length ? `
                         <h4>Unmatched Imports (${project.unmatchedImports.length}):</h4>
                         <div class="dep-list">
@@ -525,206 +727,424 @@ class NxProjectDepsAnalyzer {
         <thead>
             <tr>
                 <th>Dependency</th>
+                <th>Current Version</th>
+                <th>Latest Version</th>
                 <th>Usage Count</th>
                 <th>Projects</th>
             </tr>
         </thead>
         <tbody>
-            ${Object.entries(depUsageCount).map(([dep, count]) => `
+            ${Object.entries(depUsageCount).map(([dep, count]) => {
+                // Get the version from the first project that uses this dependency
+                const version = Object.values(projects).find(p => p.dependencies[dep])?.dependencies[dep] || '';
+                return `
                 <tr>
                     <td>${dep}</td>
+                    <td><code>${version}</code></td>
+                    <td>
+                        ${this.latestVersionsCache && this.latestVersionsCache[dep] ? 
+                            `<code class="${version !== this.latestVersionsCache[dep] ? 'version-outdated' : 'version-current'}">${this.latestVersionsCache[dep]}</code>` : 
+                            '<span class="version-unknown">N/A</span>'}
+                    </td>
                     <td>${count}</td>
                     <td>${((count / Object.keys(projects).length) * 100).toFixed(1)}%</td>
                 </tr>
-            `).join('')}
+                `;
+            }).join('')}
         </tbody>
     </table>
     
     <script>
         // Chart data
         const depUsageData = {
-            labels: ${JSON.stringify(Object.keys(depUsageCount).slice(0, 10))},
+            labels: ${JSON.stringify(Object.keys(depUsageCount).slice(0, 5))},
             datasets: [{
-                label: 'Projects Using',
-                data: ${JSON.stringify(Object.values(depUsageCount).slice(0, 10))},
-                backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
+                label: 'Number of Projects',
+                data: ${JSON.stringify(Object.values(depUsageCount).slice(0, 5))},
+                backgroundColor: [
+                    'rgba(66, 133, 244, 0.7)',  // Google Blue
+                    'rgba(219, 68, 55, 0.7)',   // Google Red
+                    'rgba(244, 180, 0, 0.7)',   // Google Yellow
+                    'rgba(15, 157, 88, 0.7)',   // Google Green
+                    'rgba(66, 133, 244, 0.5)'   // Light Blue
+                ],
+                borderColor: [
+                    'rgba(66, 133, 244, 1)',
+                    'rgba(219, 68, 55, 1)',
+                    'rgba(244, 180, 0, 1)',
+                    'rgba(15, 157, 88, 1)',
+                    'rgba(66, 133, 244, 0.8)'
+                ],
+                borderWidth: 1,
+                borderRadius: 6
             }]
         };
         
         const projectDepsData = {
-            labels: ${JSON.stringify(sortedProjects.slice(0, 10).map(p => p.name))},
+            labels: ${JSON.stringify(sortedProjects.slice(0, 5).map(p => p.project))},
             datasets: [{
-                label: 'Dependencies Count',
-                data: ${JSON.stringify(sortedProjects.slice(0, 10).map(p => Object.keys(p.dependencies).length))},
-                backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                borderColor: 'rgba(255, 99, 132, 1)',
-                borderWidth: 1
+                label: 'Dependency Count',
+                data: ${JSON.stringify(sortedProjects.slice(0, 5).map(p => p.count))},
+                backgroundColor: [
+                    'rgba(15, 157, 88, 0.7)',   // Google Green
+                    'rgba(244, 180, 0, 0.7)',   // Google Yellow
+                    'rgba(219, 68, 55, 0.7)',   // Google Red
+                    'rgba(66, 133, 244, 0.7)',  // Google Blue
+                    'rgba(15, 157, 88, 0.5)'    // Light Green
+                ],
+                borderColor: [
+                    'rgba(15, 157, 88, 1)',
+                    'rgba(244, 180, 0, 1)',
+                    'rgba(219, 68, 55, 1)',
+                    'rgba(66, 133, 244, 1)',
+                    'rgba(15, 157, 88, 0.8)'
+                ],
+                borderWidth: 1,
+                borderRadius: 6
             }]
         };
         
         // Create charts
         window.addEventListener('load', () => {
-            // Dependencies usage chart
-            new Chart(document.getElementById('depUsageChart'), {
+            const depUsageCtx = document.getElementById('depUsageChart').getContext('2d');
+            const projectDepsCtx = document.getElementById('projectDepsChart').getContext('2d');
+            
+            // Set global chart defaults
+            Chart.defaults.font.family = "'Roboto', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif";
+            Chart.defaults.font.size = 14;
+            Chart.defaults.color = '#555';
+            
+            new Chart(depUsageCtx, {
                 type: 'bar',
                 data: depUsageData,
                 options: {
                     indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Top 5 Most Used Dependencies',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            },
+                            padding: {
+                                bottom: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return "Used in " + context.raw + " projects";
+                                }
                             }
                         }
-                    }
+                    },
+                    scales: {
+                        y: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            },
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Projects'
+                            }
+                        }
+                    },
+                    maintainAspectRatio: false
                 }
             });
             
-            // Projects dependencies chart
-            new Chart(document.getElementById('projectDepsChart'), {
+            new Chart(projectDepsCtx, {
                 type: 'bar',
                 data: projectDepsData,
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Top 5 Projects with Most Dependencies',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            },
+                            padding: {
+                                bottom: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.raw + " dependencies";
+                                }
+                            }
+                        }
+                    },
                     scales: {
                         y: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            },
                             beginAtZero: true,
-                            ticks: {
-                                precision: 0
+                            title: {
+                                display: true,
+                                text: 'Number of Dependencies'
                             }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        }
+                    },
+                    maintainAspectRatio: false
+                }
+            });
+        });
+        
+        // Project card expand/collapse
+        document.querySelectorAll('.expand-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const card = btn.closest('.project-card');
+                card.classList.toggle('expanded');
+                btn.textContent = card.classList.contains('expanded') ? 'Collapse' : 'Details';
+            });
+        });
+        
+        // Search functionality
+        document.getElementById("searchInput").addEventListener("input", function() {
+            const searchTerm = this.value.toLowerCase();
+            
+            document.querySelectorAll(".project-card").forEach(function(card) {
+                const projectName = card.dataset.project.toLowerCase();
+                
+                // Check dependencies in the project table
+                const depMatches = Array.from(card.querySelectorAll(".deps-table tbody tr")).some(function(row) {
+                    const depName = row.cells[0].textContent.toLowerCase();
+                    const depVersion = row.cells[1].textContent.toLowerCase();
+                    return depName.includes(searchTerm) || depVersion.includes(searchTerm);
+                });
+                
+                // Check unmatched imports in badges
+                const unmatchedMatches = Array.from(card.querySelectorAll(".badge"))
+                    .some(function(badge) {
+                        return badge.textContent.toLowerCase().includes(searchTerm);
+                    });
+                
+                const matches = projectName.includes(searchTerm) || depMatches || unmatchedMatches;
+                
+                card.style.display = matches ? "block" : "none";
+            });
+            
+            // Filter main dependency table
+            document.querySelectorAll("#depsTable tbody tr").forEach(function(row) {
+                const depName = row.cells[0].textContent.toLowerCase();
+                const depVersion = row.cells[1].textContent.toLowerCase();
+                row.style.display = depName.includes(searchTerm) || depVersion.includes(searchTerm) ? "" : "none";
+            });
+        });
+
+        // Table sorting functionality
+        const sortTable = function(table, column, asc = true) {
+            const dirModifier = asc ? 1 : -1;
+            const tBody = table.querySelector("tbody");
+            const rows = Array.from(tBody.querySelectorAll("tr"));
+            
+            // Sort each row
+            const sortedRows = rows.sort((a, b) => {
+                const aColText = a.querySelector("td:nth-child(" + (column + 1) + ")").textContent.trim();
+                const bColText = b.querySelector("td:nth-child(" + (column + 1) + ")").textContent.trim();
+                
+                // Compare version strings if it's the version column
+                if (column === 1) {
+                    // Try to compare as semantic versions
+                    const aVersion = aColText.replace(/[^\d.]/g, "").split(".").map(Number);
+                    const bVersion = bColText.replace(/[^\d.]/g, "").split(".").map(Number);
+                    
+                    for (let i = 0; i < Math.max(aVersion.length, bVersion.length); i++) {
+                        const aVal = aVersion[i] || 0;
+                        const bVal = bVersion[i] || 0;
+                        if (aVal !== bVal) {
+                            return (aVal - bVal) * dirModifier;
                         }
                     }
                 }
+                
+                return aColText.localeCompare(bColText) * dirModifier;
             });
             
-            // Project card expand/collapse
-            document.querySelectorAll('.expand-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const card = btn.closest('.project-card');
-                    card.classList.toggle('expanded');
-                    btn.textContent = card.classList.contains('expanded') ? 'Collapse' : 'Details';
-                });
-            });
+            // Remove all existing rows from the table
+            while (tBody.firstChild) {
+                tBody.removeChild(tBody.firstChild);
+            }
             
-            // Search functionality
-            document.getElementById('searchInput').addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase();
-                
-                document.querySelectorAll('.project-card').forEach(card => {
-                    const projectName = card.dataset.project.toLowerCase();
-                    const deps = Array.from(card.querySelectorAll('.badge'))
-                        .map(badge => badge.textContent.toLowerCase());
-                    
-                    const matches = projectName.includes(searchTerm) || 
-                        deps.some(dep => dep.includes(searchTerm));
-                    
-                    card.style.display = matches ? 'block' : 'none';
-                });
-                
-                // Filter dependency table
-                document.querySelectorAll('#depsTable tbody tr').forEach(row => {
-                    const depName = row.cells[0].textContent.toLowerCase();
-                    row.style.display = depName.includes(searchTerm) ? '' : 'none';
-                });
+            // Add sorted rows
+            tBody.append.apply(tBody, sortedRows);
+            
+            // Remember how the column is currently sorted
+            table.querySelectorAll("th").forEach(th => th.classList.remove("sort-asc", "sort-desc"));
+            table.querySelector("th:nth-child(" + (column + 1) + ")").classList.toggle("sort-asc", asc);
+            table.querySelector("th:nth-child(" + (column + 1) + ")").classList.toggle("sort-desc", !asc);
+        };
+        
+        // Add event listeners to all dependency table headers
+        document.querySelectorAll(".deps-table th").forEach(function(headerCell, index) {
+            headerCell.addEventListener("click", function() {
+                const table = headerCell.closest("table");
+                const currentIsAscending = headerCell.classList.contains("sort-asc");
+                sortTable(table, index, !currentIsAscending);
             });
         });
     </script>
 </body>
 </html>
-    `;
+`;
+  }
+
+  async fetchLatestVersions(dependencies, skipLatest = false) {
+    if (skipLatest) {
+      console.log('Skipping fetching latest versions (--skip-latest flag set)');
+      return {};
+    }
+
+    console.log('\n📡 Fetching latest versions from npm registry...');
+    const results = {};
+    const batchSize = 5; // Process in smaller batches to avoid rate limiting
+    const depList = Object.keys(dependencies);
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < depList.length; i += batchSize) {
+      const batch = depList.slice(i, i + batchSize);
+      console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(depList.length/batchSize)} (${i+1}-${Math.min(i+batchSize, depList.length)} of ${depList.length} dependencies)`);
+      
+      await Promise.all(batch.map(async (dep) => {
+        try {
+          const response = await axios.get(`https://registry.npmjs.org/${dep}/latest`, {
+            timeout: 5000,
+            headers: { 'User-Agent': 'nx-dependency-analyzer' }
+          });
+          
+          if (response.status === 200 && response.data && response.data.version) {
+            results[dep] = response.data.version;
+            success++;
+          } else {
+            console.log(`Warning: Unexpected response for ${dep}`);
+            failed++;
+          }
+        } catch (error) {
+          console.log(`Error fetching version for ${dep}: ${error.message}`);
+          failed++;
+        }
+      }));
+      
+      // Small delay between batches to avoid rate limiting
+      if (i + batchSize < depList.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    console.log(`✅ Completed version check: ${success} successful, ${failed} failed`);
+    return results;
   }
 }
 
-// Set up command-line interface
+// Handle command line arguments
 program
   .name('nx-project-deps')
-  .description('Analyze npm dependencies for specific projects in an Nx monorepo')
+  .description('Analyze dependencies in an Nx monorepo')
   .version('1.0.0');
 
 program
-  .command('analyze')
-  .description('Analyze dependencies for all projects')
-  .option('-r, --root <path>', 'Path to monorepo root', process.cwd())
-  .option('-v, --verbose', 'Enable verbose output', false)
-  .option('-o, --output <file>', 'Output HTML report file', '')
-  .option('-b, --browser', 'Open the generated report in browser', false)
-  .option('-d, --reports-dir <dir>', 'Reports directory', 'deps-reports')
-  .action(async (options) => {
-    console.log(`🔍 Analyzing dependencies for Nx monorepo at ${options.root}`);
-    
-    const analyzer = new NxProjectDepsAnalyzer({
-      rootDir: options.root,
-      verbose: options.verbose
-    });
-    
-    const results = analyzer.analyzeAllProjects();
-    
-    // Print summary
-    console.log('\n📊 Dependencies Analysis Summary:');
-    console.log(`Total projects analyzed: ${results.totalProjects}`);
-    
-    const topDeps = Object.entries(results.depUsageCount)
-      .slice(0, 10)
-      .map(([dep, count]) => `${dep} (${count} projects)`);
-    
-    console.log('\nTop 10 most used dependencies:');
-    topDeps.forEach((dep, index) => console.log(`${index + 1}. ${dep}`));
-    
-    // Generate HTML report
-    const html = analyzer.generateHtmlReport(results);
-    
-    // Save report and optionally open in browser
-    const defaultFilename = generateTimestampedFilename('project-deps');
-    await saveAndOpenReport(html, options.output, options.browser, defaultFilename, options.reportsDir);
-    
-    console.log(`\n📊 Project dependencies analysis completed successfully`);
-  });
-
-program
   .command('project')
-  .description('Analyze dependencies for a specific project')
-  .option('-r, --root <path>', 'Path to monorepo root', process.cwd())
-  .option('-v, --verbose', 'Enable verbose output', false)
-  .requiredOption('-p, --project <name>', 'Project name to analyze')
-  .action((options) => {
-    console.log(`🔍 Analyzing dependencies for project ${options.project} in Nx monorepo at ${options.root}`);
-    
+  .description('Analyze dependencies of projects in an Nx workspace')
+  .requiredOption('--root <path>', 'Path to the root of the Nx workspace')
+  .option('--project <projectName>', 'Name of the project to analyze')
+  .option('-v, --verbose', 'Enable verbose output')
+  .option('-b, --browser', 'Open the report in a browser after generation', false)
+  .option('-s, --skip-latest', 'Skip fetching latest versions from npm registry', false)
+  .option('-n, --npm-only', 'Show only projects with npm dependencies', false)
+  .action(async (options) => {
     const analyzer = new NxProjectDepsAnalyzer({
       rootDir: options.root,
       verbose: options.verbose
     });
     
-    const analysis = analyzer.analyzeProject(options.project);
+    let analysis;
     
-    if (analysis) {
-      console.log('\n📊 Dependencies Analysis Summary:');
-      console.log(`Project: ${analysis.name} (${analysis.type})`);
-      console.log(`Root: ${analysis.root}`);
-      console.log(`Dependencies: ${Object.keys(analysis.dependencies).length}`);
+    if (options.project) {
+      const project = analyzer.analyzeProject(options.project);
+      if (project) {
+        console.log('\n✅ Analysis complete for project:', options.project);
+        
+        // Collect all dependencies from the project
+        const allDeps = {};
+        Object.entries(project.dependencies).forEach(([dep, version]) => {
+          allDeps[dep] = version;
+        });
+        
+        // Fetch latest versions if not skipped
+        project.latestVersions = options.skipLatest ? {} : await analyzer.fetchLatestVersions(allDeps, options.skipLatest);
+        
+        analysis = {
+          projects: { [options.project]: project },
+          depUsageCount: {},
+          totalProjects: 1,
+          npmOnly: false
+        };
+        
+        // Count dependency usage for this single project
+        Object.keys(project.dependencies).forEach(dep => {
+          analysis.depUsageCount[dep] = 1;
+        });
+      } else {
+        console.error('❌ Failed to analyze project:', options.project);
+        process.exit(1);
+      }
+    } else {
+      // Analyze all projects
+      analysis = analyzer.analyzeAllProjects(options.npmOnly);
+      console.log('\n✅ Analysis complete for all projects');
       
-      console.log('\nDependencies:');
-      Object.entries(analysis.dependencies).forEach(([dep, version]) => {
-        console.log(`- ${dep}: ${version}`);
+      // Collect all unique dependencies across all projects
+      const allDeps = {};
+      Object.values(analysis.projects).forEach(project => {
+        Object.entries(project.dependencies).forEach(([dep, version]) => {
+          allDeps[dep] = version;
+        });
       });
       
-      if (analysis.unmatchedImports.length > 0) {
-        console.log('\nUnmatched imports:');
-        analysis.unmatchedImports.forEach(imp => {
-          console.log(`- ${imp}`);
+      // Log top 5 most used dependencies
+      console.log(chalk.bold.blueBright("\nTop 5 most used dependencies:"));
+      Object.entries(analysis.depUsageCount)
+        .forEach(([dep, count]) => {
+          console.log(`${dep}: ${count} project${count !== 1 ? 's' : ''}`);
         });
-      }
+      
+      // Fetch latest versions if not skipped
+      const latestVersions = options.skipLatest ? {} : await analyzer.fetchLatestVersions(allDeps, options.skipLatest);
+      
+      // Add latest versions to each project
+      Object.values(analysis.projects).forEach(project => {
+        project.latestVersions = {};
+        Object.keys(project.dependencies).forEach(dep => {
+          if (latestVersions[dep]) {
+            project.latestVersions[dep] = latestVersions[dep];
+          }
+        });
+      });
     }
+    
+    // Generate HTML report
+    const report = analyzer.generateHtmlReport(analysis);
+    
+    // Save the report
+    const filename = generateTimestampedFilename('project-deps');
+    await saveAndOpenReport(report, '', options.browser === true, filename);
   });
 
-program.parse(process.argv);
-
-// Show help if no command is provided
-if (!process.argv.slice(2).length) {
-  program.outputHelp();
-} 
+module.exports = NxProjectDepsAnalyzer;

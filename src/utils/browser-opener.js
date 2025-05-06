@@ -16,6 +16,11 @@ function openInBrowser(filePath) {
     
     console.log(`🌐 Opening ${absolutePath} in your default browser...`);
     
+    // Log to a file for debugging
+    const fs = require('fs');
+    fs.appendFileSync('/Users/lironhazan/npm-dependencies-mcp/browser-open.log', 
+      `Browser open attempted at ${new Date().toISOString()} for ${absolutePath}\n`);
+    
     // Determine the command based on the operating system
     let command;
     const platform = os.platform();
@@ -33,9 +38,13 @@ function openInBrowser(filePath) {
       if (error) {
         console.error(`❌ Error opening browser: ${error.message}`);
         console.log(`💡 You can manually open the file at: ${absolutePath}`);
+        fs.appendFileSync('/Users/lironhazan/npm-dependencies-mcp/browser-open.log', 
+          `Browser open FAILED at ${new Date().toISOString()}: ${error.message}\n`);
         resolve(false);
       } else {
         console.log('✅ Browser opened successfully');
+        fs.appendFileSync('/Users/lironhazan/npm-dependencies-mcp/browser-open.log', 
+          `Browser opened SUCCESSFULLY at ${new Date().toISOString()}\n`);
         resolve(true);
       }
     });

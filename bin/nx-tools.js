@@ -33,14 +33,16 @@ program
   .option('-b, --browser', 'Open the generated report in browser', false)
   .option('-d, --reports-dir <dir>', 'Reports directory', 'deps-reports')
   .option('-p, --project <n>', 'Analyze a specific project')
+  .option('-s, --skip-latest', 'Skip fetching latest versions from npm')
+  .option('-n, --npm-only', 'Show only npm projects with dependencies')
   .action((options) => {
     const scriptPath = path.join(__dirname, '../src/nx/nx-project-deps.js');
     let cmd;
     
     if (options.project) {
-      cmd = `node ${scriptPath} project --root "${options.root}" ${options.verbose ? '--verbose' : ''} --project "${options.project}"`;
+      cmd = `node ${scriptPath} project --root "${options.root}" ${options.verbose ? '--verbose' : ''} --project "${options.project}" ${options.browser ? '--browser' : ''} ${options.skipLatest ? '--skip-latest' : ''} ${options.npmOnly ? '--npm-only' : ''}`;
     } else {
-      cmd = `node ${scriptPath} analyze --root "${options.root}" ${options.verbose ? '--verbose' : ''} ${options.output ? `--output "${options.output}"` : ''} ${options.browser ? '--browser' : ''} --reports-dir "${options.reportsDir}"`;
+      cmd = `node ${scriptPath} analyze --root "${options.root}" ${options.verbose ? '--verbose' : ''} ${options.output ? `--output "${options.output}"` : ''} ${options.browser ? '--browser' : ''} --reports-dir "${options.reportsDir}" ${options.skipLatest ? '--skip-latest' : ''} ${options.npmOnly ? '--npm-only' : ''}`;
     }
     
     console.log(`Executing: ${cmd}`);

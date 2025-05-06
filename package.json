@@ -1,6 +1,6 @@
 {
   "name": "npm-dependencies-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Model Context Protocol for NPM Dependencies in Monorepos",
   "main": "index.js",
   "bin": {
