@@ -3,6 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/npm-dependencies-mcp.svg)](https://www.npmjs.com/package/npm-dependencies-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+> **Note**: This library was created with the assistance of Claude AI to enhance development workflows in monorepo environments.
 
 ## Installation
 
@@ -294,4 +295,62 @@ mcp-npm query "are there any packages using different versions of lodash?"
 
 # Complex dependency questions
 mcp-npm query "what would be affected if I update axios to the latest version?"
+```
+
+## NX Tools
+
+This library includes `nx-tools` commands for analyzing NX monorepo dependencies:
+
+### Analyzing Dependencies
+```bash
+# Analyze dependencies in an NX monorepo
+nx-tools deps [options]
+```
+Options:
+- `-p, --project <path>` - Path to specific NX project
+- `-r, --root <path>` - Path to monorepo root (default: current directory)
+- `-v, --verbose` - Enable verbose output
+- `-b, --browser` - Open the generated HTML report in browser
+- `-s, --skip-latest` - Skip fetching latest versions from npm registry
+- `-n, --npm-only` - Show only projects with npm dependencies
+
+### Generating Project Graphs
+```bash
+# Generate a visualization of project dependencies
+nx-tools graph [options]
+```
+Options:
+- `-r, --root <path>` - Path to monorepo root
+- `-o, --output <file>` - Output HTML file
+- `-b, --browser` - Open the generated file in browser
+
+### Analyzing Monorepo Structure
+```bash
+# Analyze the structure of an NX monorepo
+nx-tools analyze [options]
+```
+Options:
+- `-r, --root <path>` - Path to monorepo root
+- `-a, --apps <dir>` - Apps directory name (default: 'apps')
+- `-l, --libs <dir>` - Libraries directory name (default: 'libs')
+
+### Scanning for Vulnerabilities
+```bash
+# Scan for vulnerabilities in dependencies
+nx-tools vuln [options]
+```
+Options:
+- `-r, --root <path>` - Path to monorepo root
+- `-l, --level <level>` - Minimum vulnerability level to report
+
+### Examples
+```bash
+# Analyze dependencies and open a report in the browser
+nx-tools deps -p /path/to/nx/project -b
+
+# Only show npm projects with their dependencies
+nx-tools deps -p /path/to/nx/project -n
+
+# Skip fetching latest versions for faster analysis
+nx-tools deps -p /path/to/nx/project -s
 ```
