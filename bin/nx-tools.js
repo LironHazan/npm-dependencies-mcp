@@ -42,7 +42,7 @@ program
     if (options.project) {
       cmd = `node ${scriptPath} project --root "${options.root}" ${options.verbose ? '--verbose' : ''} --project "${options.project}" ${options.browser ? '--browser' : ''} ${options.skipLatest ? '--skip-latest' : ''} ${options.npmOnly ? '--npm-only' : ''}`;
     } else {
-      cmd = `node ${scriptPath} analyze --root "${options.root}" ${options.verbose ? '--verbose' : ''} ${options.output ? `--output "${options.output}"` : ''} ${options.browser ? '--browser' : ''} --reports-dir "${options.reportsDir}" ${options.skipLatest ? '--skip-latest' : ''} ${options.npmOnly ? '--npm-only' : ''}`;
+      cmd = `node ${scriptPath} project --root "${options.root}" ${options.verbose ? '--verbose' : ''} ${options.output ? `--output "${options.output}"` : ''} ${options.browser ? '--browser' : ''} ${options.skipLatest ? '--skip-latest' : ''} ${options.npmOnly ? '--npm-only' : ''}`;
     }
     
     console.log(`Executing: ${cmd}`);

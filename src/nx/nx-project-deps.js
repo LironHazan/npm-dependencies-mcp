@@ -361,11 +361,17 @@ class NxProjectDepsAnalyzer {
     
     // Sort projects by dependency count
     const sortedProjects = Object.entries(projects)
-      .map(([project, projectData]) => ({ project, count: Object.keys(projectData.dependencies).length }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
+      .map(([project, projectData]) => ({ 
+        project, 
+        count: Object.keys(projectData.dependencies || {}).length,
+        root: projectData.root,
+        type: projectData.type,
+        dependencies: projectData.dependencies || {},
+        unmatchedImports: projectData.unmatchedImports || []
+      }))
+      .sort((a, b) => b.count - a.count);
     
-    // Generate HTML
+    // Generate ultra-simple HTML with minimal styling
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -373,630 +379,164 @@ class NxProjectDepsAnalyzer {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nx Monorepo Dependencies Analysis ${npmOnly ? '(npm projects only)' : ''}</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            line-height: 1.6;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            line-height: 1.4;
+            margin: 20px;
             color: #333;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        h1, h2, h3 {
-            color: #2a3f5f;
-        }
-        
-        .dashboard {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        @media (min-width: 992px) {
-            .dashboard {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-        
-        canvas {
-            min-height: 300px;
-        }
-        
-        .card {
-            background-color: white;
-            border-radius: 12px;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.07);
-            margin-bottom: 1.5rem;
-            padding: 1.5rem;
-            transition: all 0.3s ease;
-        }
-        
-        .card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-        }
-        
-        .card h3 {
-            margin-top: 0;
-            margin-bottom: 1rem;
-            color: #333;
-            font-weight: 500;
         }
         
         table {
-            width: 100%;
             border-collapse: collapse;
+            width: 100%;
             margin-bottom: 20px;
+            font-size: 14px;
         }
         
         th, td {
-            padding: 12px 15px;
+            border: 1px solid #ddd;
+            padding: 8px;
             text-align: left;
-            border-bottom: 1px solid #ddd;
         }
         
         th {
-            background-color: #f8f9fa;
-            font-weight: 600;
+            background-color: #f2f2f2;
+            font-weight: bold;
         }
         
-        tr:hover {
-            background-color: #f5f5f5;
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .project-header {
+            margin: 20px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .outdated {
+            background-color: #fff3cd;
+        }
+        
+        .current {
+            background-color: #d4edda;
+        }
+        
+        .filter-notice {
+            background-color: #e7f5fe;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #0066cc;
         }
         
         .search {
             margin-bottom: 20px;
         }
         
-        .search input {
-            padding: 8px 12px;
+        input[type="text"] {
+            padding: 8px;
             width: 300px;
             border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
         }
-        
-        .badge {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-right: 8px;
-            margin-bottom: 8px;
-            white-space: nowrap;
-        }
-        
-        .badge-primary {
-            background-color: #3498db;
-            color: white;
-        }
-        
-        .badge-success {
-            background-color: #2ecc71;
-            color: white;
-        }
-        
-        .badge-warning {
-            background-color: #f39c12;
-            color: white;
-        }
-        
-        .expand-btn {
-            background: none;
-            border: none;
-            color: #3498db;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        
-        .project-card {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-            overflow: hidden;
-        }
-        
-        .project-header {
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .project-name {
-            font-weight: 600;
-            margin: 0;
-        }
-        
-        .project-meta {
-            font-size: 14px;
-            color: #666;
-        }
-        
-        .project-body {
-            padding: 15px;
-            display: none;
-        }
-        
-        .dep-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-        }
-        
-        .project-card.expanded .project-body {
-            display: block;
-        }
-        
-        .badge small {
-            opacity: 0.8;
-            font-weight: 400;
-            margin-left: 3px;
-        }
-        
+
         code {
+            font-family: monospace;
+            padding: 1px 5px;
             background-color: #f5f5f5;
-            padding: 2px 4px;
             border-radius: 3px;
-            font-size: 90%;
-            color: #e83e8c;
-        }
-
-        .deps-table-container {
-            margin-bottom: 20px;
-            max-height: 300px;
-            overflow-y: auto;
-            border-radius: 4px;
-            border: 1px solid #eee;
-        }
-        
-        .deps-table {
-            width: 100%;
-            font-size: 13px;
-            border-collapse: collapse;
-            margin-bottom: 0;
-        }
-        
-        .deps-table th {
-            position: sticky;
-            top: 0;
-            background-color: #f8f9fa;
-            z-index: 10;
-            font-weight: 600;
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-            cursor: pointer;
-            user-select: none;
-        }
-        
-        .deps-table th:hover {
-            background-color: #e9ecef;
-        }
-        
-        .deps-table th::after {
-            content: "";
-            margin-left: 5px;
-        }
-        
-        .deps-table th.sort-asc::after {
-            content: "▲";
-            font-size: 10px;
-        }
-        
-        .deps-table th.sort-desc::after {
-            content: "▼";
-            font-size: 10px;
-        }
-        
-        .deps-table td {
-            padding: 8px 10px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .deps-table tr:last-child td {
-            border-bottom: none;
-        }
-        
-        .deps-table tr:hover {
-            background-color: #f5f5f5;
-        }
-
-        .version-outdated {
-            background-color: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeeba;
-        }
-        
-        .version-current {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .version-unknown {
-            color: #6c757d;
-            font-style: italic;
-        }
-        
-        .filter-notice {
-            background-color: #e7f5fe;
-            color: #004085;
-            padding: 10px 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            border-left: 4px solid #b8daff;
-        }
-        
-        .filter-notice p {
-            margin: 0;
         }
     </style>
 </head>
 <body>
     <h1>Nx Monorepo Dependencies Analysis</h1>
+    
     ${npmOnly ? `
     <div class="filter-notice">
-        <p>🔍 <strong>Filter active:</strong> Showing only projects with npm dependencies</p>
+        <p>Showing only projects with npm dependencies (${sortedProjects.length} of ${Object.values(projects).length} total projects)</p>
     </div>
     ` : ''}
     
-    <div class="dashboard">
-        <div class="card">
-            <h3>Top 5 Most Used Dependencies</h3>
-            <canvas id="depUsageChart"></canvas>
-        </div>
-        <div class="card">
-            <h3>Top 5 Projects with Most Dependencies</h3>
-            <canvas id="projectDepsChart"></canvas>
-        </div>
-    </div>
-    
-    <h2>Project Dependencies</h2>
-    <p>Total projects analyzed: ${Object.keys(projects).length}</p>
-    
-    <div class="search">
-        <input type="text" id="searchInput" placeholder="Search projects or dependencies...">
-    </div>
-    
-    <div id="projectList">
-        ${sortedProjects.map(project => `
-            <div class="project-card" data-project="${project.project}">
-                <div class="project-header">
-                    <h3 class="project-name">${project.project}</h3>
-                    <div class="project-meta">
-                        <span class="badge badge-${project.type === 'application' ? 'primary' : 'success'}">
-                            ${project.type}
-                        </span>
-                        <span>${project.count} dependencies</span>
-                    </div>
-                    <button class="expand-btn">Details</button>
-                </div>
-                <div class="project-body">
-                    <p><strong>Project root:</strong> ${project.root}</p>
-                    <h4>Dependencies (${project.count}):</h4>
-                    ${project.count > 0 ? `
-                    <div class="deps-table-container">
-                        <table class="deps-table">
-                            <thead>
-                                <tr>
-                                    <th>Dependency</th>
-                                    <th>Current Version</th>
-                                    <th>Latest Version</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${Object.entries(project.dependencies).map(([dep, version]) => `
-                                <tr>
-                                    <td>${dep}</td>
-                                    <td><code>${version}</code></td>
-                                    <td>
-                                        ${this.latestVersionsCache && this.latestVersionsCache[dep] ? 
-                                            `<code class="${version !== this.latestVersionsCache[dep] ? 'version-outdated' : 'version-current'}">${this.latestVersionsCache[dep]}</code>` : 
-                                            '<span class="version-unknown">N/A</span>'}
-                                    </td>
-                                </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                    ` : '<p>No dependencies found.</p>'}
-                    ${project.unmatchedImports.length ? `
-                        <h4>Unmatched Imports (${project.unmatchedImports.length}):</h4>
-                        <div class="dep-list">
-                            ${project.unmatchedImports.map(imp => 
-                                `<span class="badge badge-warning">${imp}</span>`
-                            ).join('')}
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `).join('')}
-    </div>
-    
-    <h2>Dependency Usage</h2>
-    
-    <table id="depsTable">
-        <thead>
+    <h2>Most Used Dependencies</h2>
+    <table>
+        <tr>
+            <th>Dependency</th>
+            <th>Usage Count</th>
+            <th>Current Version</th>
+            <th>Latest Version</th>
+        </tr>
+        ${Object.entries(depUsageCount)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10)
+          .map(([dep, count]) => {
+            const version = Object.values(projects).find(p => p.dependencies && p.dependencies[dep])?.dependencies[dep] || '';
+            const latestVersion = this.latestVersionsCache[dep] || 'N/A';
+            const isOutdated = version !== latestVersion && latestVersion !== 'N/A';
+            
+            return `
             <tr>
-                <th>Dependency</th>
-                <th>Current Version</th>
-                <th>Latest Version</th>
-                <th>Usage Count</th>
-                <th>Projects</th>
+                <td><strong>${dep}</strong></td>
+                <td>${count} projects</td>
+                <td><code>${version}</code></td>
+                <td class="${isOutdated ? 'outdated' : 'current'}"><code>${latestVersion}</code></td>
             </tr>
-        </thead>
-        <tbody>
-            ${Object.entries(depUsageCount).map(([dep, count]) => {
-                // Get the version from the first project that uses this dependency
-                const version = Object.values(projects).find(p => p.dependencies[dep])?.dependencies[dep] || '';
-                return `
-                <tr>
-                    <td>${dep}</td>
-                    <td><code>${version}</code></td>
-                    <td>
-                        ${this.latestVersionsCache && this.latestVersionsCache[dep] ? 
-                            `<code class="${version !== this.latestVersionsCache[dep] ? 'version-outdated' : 'version-current'}">${this.latestVersionsCache[dep]}</code>` : 
-                            '<span class="version-unknown">N/A</span>'}
-                    </td>
-                    <td>${count}</td>
-                    <td>${((count / Object.keys(projects).length) * 100).toFixed(1)}%</td>
-                </tr>
-                `;
-            }).join('')}
-        </tbody>
+            `;
+          }).join('')}
     </table>
     
+    <div class="search">
+        <input type="text" id="searchInput" placeholder="Filter by project name or dependency...">
+    </div>
+    
+    <h2>Project Details</h2>
+    
+    ${sortedProjects.map(project => `
+        <div class="project-item" data-project="${project.project}">
+            <h3 class="project-header">${project.project} (${project.type}) - ${project.count} dependencies</h3>
+            <p>Project root: ${project.root}</p>
+            
+            ${project.count > 0 ? `
+            <table class="deps-table">
+                <tr>
+                    <th>Dependency</th>
+                    <th>Current Version</th>
+                    <th>Latest Version</th>
+                </tr>
+                ${Object.entries(project.dependencies || {}).map(([dep, version]) => {
+                    const latestVersion = this.latestVersionsCache[dep] || 'N/A';
+                    const isOutdated = version !== latestVersion && latestVersion !== 'N/A';
+                    
+                    return `
+                    <tr>
+                        <td>${dep}</td>
+                        <td><code>${version}</code></td>
+                        <td class="${isOutdated ? 'outdated' : 'current'}"><code>${latestVersion}</code></td>
+                    </tr>
+                    `;
+                }).join('')}
+            </table>
+            ` : '<p>No dependencies found.</p>'}
+            
+            ${project.unmatchedImports && project.unmatchedImports.length ? `
+                <p><strong>Unmatched Imports (${project.unmatchedImports.length}):</strong> ${project.unmatchedImports.join(', ')}</p>
+            ` : ''}
+        </div>
+    `).join('')}
+    
     <script>
-        // Chart data
-        const depUsageData = {
-            labels: ${JSON.stringify(Object.keys(depUsageCount).slice(0, 5))},
-            datasets: [{
-                label: 'Number of Projects',
-                data: ${JSON.stringify(Object.values(depUsageCount).slice(0, 5))},
-                backgroundColor: [
-                    'rgba(66, 133, 244, 0.7)',  // Google Blue
-                    'rgba(219, 68, 55, 0.7)',   // Google Red
-                    'rgba(244, 180, 0, 0.7)',   // Google Yellow
-                    'rgba(15, 157, 88, 0.7)',   // Google Green
-                    'rgba(66, 133, 244, 0.5)'   // Light Blue
-                ],
-                borderColor: [
-                    'rgba(66, 133, 244, 1)',
-                    'rgba(219, 68, 55, 1)',
-                    'rgba(244, 180, 0, 1)',
-                    'rgba(15, 157, 88, 1)',
-                    'rgba(66, 133, 244, 0.8)'
-                ],
-                borderWidth: 1,
-                borderRadius: 6
-            }]
-        };
-        
-        const projectDepsData = {
-            labels: ${JSON.stringify(sortedProjects.slice(0, 5).map(p => p.project))},
-            datasets: [{
-                label: 'Dependency Count',
-                data: ${JSON.stringify(sortedProjects.slice(0, 5).map(p => p.count))},
-                backgroundColor: [
-                    'rgba(15, 157, 88, 0.7)',   // Google Green
-                    'rgba(244, 180, 0, 0.7)',   // Google Yellow
-                    'rgba(219, 68, 55, 0.7)',   // Google Red
-                    'rgba(66, 133, 244, 0.7)',  // Google Blue
-                    'rgba(15, 157, 88, 0.5)'    // Light Green
-                ],
-                borderColor: [
-                    'rgba(15, 157, 88, 1)',
-                    'rgba(244, 180, 0, 1)',
-                    'rgba(219, 68, 55, 1)',
-                    'rgba(66, 133, 244, 1)',
-                    'rgba(15, 157, 88, 0.8)'
-                ],
-                borderWidth: 1,
-                borderRadius: 6
-            }]
-        };
-        
-        // Create charts
-        window.addEventListener('load', () => {
-            const depUsageCtx = document.getElementById('depUsageChart').getContext('2d');
-            const projectDepsCtx = document.getElementById('projectDepsChart').getContext('2d');
-            
-            // Set global chart defaults
-            Chart.defaults.font.family = "'Roboto', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif";
-            Chart.defaults.font.size = 14;
-            Chart.defaults.color = '#555';
-            
-            new Chart(depUsageCtx, {
-                type: 'bar',
-                data: depUsageData,
-                options: {
-                    indexAxis: 'y',
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: 'Top 5 Most Used Dependencies',
-                            font: {
-                                size: 16,
-                                weight: 'bold'
-                            },
-                            padding: {
-                                bottom: 20
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return "Used in " + context.raw + " projects";
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            grid: {
-                                color: 'rgba(0, 0, 0, 0.05)'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                color: 'rgba(0, 0, 0, 0.05)'
-                            },
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Number of Projects'
-                            }
-                        }
-                    },
-                    maintainAspectRatio: false
-                }
-            });
-            
-            new Chart(projectDepsCtx, {
-                type: 'bar',
-                data: projectDepsData,
-                options: {
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: 'Top 5 Projects with Most Dependencies',
-                            font: {
-                                size: 16,
-                                weight: 'bold'
-                            },
-                            padding: {
-                                bottom: 20
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.raw + " dependencies";
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            grid: {
-                                color: 'rgba(0, 0, 0, 0.05)'
-                            },
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Number of Dependencies'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                color: 'rgba(0, 0, 0, 0.05)'
-                            }
-                        }
-                    },
-                    maintainAspectRatio: false
-                }
-            });
-        });
-        
-        // Project card expand/collapse
-        document.querySelectorAll('.expand-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const card = btn.closest('.project-card');
-                card.classList.toggle('expanded');
-                btn.textContent = card.classList.contains('expanded') ? 'Collapse' : 'Details';
-            });
-        });
-        
-        // Search functionality
-        document.getElementById("searchInput").addEventListener("input", function() {
+        // Simple search functionality
+        document.getElementById('searchInput').addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
             
-            document.querySelectorAll(".project-card").forEach(function(card) {
-                const projectName = card.dataset.project.toLowerCase();
+            document.querySelectorAll('.project-item').forEach(function(item) {
+                const projectName = item.dataset.project.toLowerCase();
+                const projectContent = item.textContent.toLowerCase();
                 
-                // Check dependencies in the project table
-                const depMatches = Array.from(card.querySelectorAll(".deps-table tbody tr")).some(function(row) {
-                    const depName = row.cells[0].textContent.toLowerCase();
-                    const depVersion = row.cells[1].textContent.toLowerCase();
-                    return depName.includes(searchTerm) || depVersion.includes(searchTerm);
-                });
-                
-                // Check unmatched imports in badges
-                const unmatchedMatches = Array.from(card.querySelectorAll(".badge"))
-                    .some(function(badge) {
-                        return badge.textContent.toLowerCase().includes(searchTerm);
-                    });
-                
-                const matches = projectName.includes(searchTerm) || depMatches || unmatchedMatches;
-                
-                card.style.display = matches ? "block" : "none";
-            });
-            
-            // Filter main dependency table
-            document.querySelectorAll("#depsTable tbody tr").forEach(function(row) {
-                const depName = row.cells[0].textContent.toLowerCase();
-                const depVersion = row.cells[1].textContent.toLowerCase();
-                row.style.display = depName.includes(searchTerm) || depVersion.includes(searchTerm) ? "" : "none";
-            });
-        });
-
-        // Table sorting functionality
-        const sortTable = function(table, column, asc = true) {
-            const dirModifier = asc ? 1 : -1;
-            const tBody = table.querySelector("tbody");
-            const rows = Array.from(tBody.querySelectorAll("tr"));
-            
-            // Sort each row
-            const sortedRows = rows.sort((a, b) => {
-                const aColText = a.querySelector("td:nth-child(" + (column + 1) + ")").textContent.trim();
-                const bColText = b.querySelector("td:nth-child(" + (column + 1) + ")").textContent.trim();
-                
-                // Compare version strings if it's the version column
-                if (column === 1) {
-                    // Try to compare as semantic versions
-                    const aVersion = aColText.replace(/[^\d.]/g, "").split(".").map(Number);
-                    const bVersion = bColText.replace(/[^\d.]/g, "").split(".").map(Number);
-                    
-                    for (let i = 0; i < Math.max(aVersion.length, bVersion.length); i++) {
-                        const aVal = aVersion[i] || 0;
-                        const bVal = bVersion[i] || 0;
-                        if (aVal !== bVal) {
-                            return (aVal - bVal) * dirModifier;
-                        }
-                    }
+                if (projectName.includes(searchTerm) || projectContent.includes(searchTerm)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
                 }
-                
-                return aColText.localeCompare(bColText) * dirModifier;
-            });
-            
-            // Remove all existing rows from the table
-            while (tBody.firstChild) {
-                tBody.removeChild(tBody.firstChild);
-            }
-            
-            // Add sorted rows
-            tBody.append.apply(tBody, sortedRows);
-            
-            // Remember how the column is currently sorted
-            table.querySelectorAll("th").forEach(th => th.classList.remove("sort-asc", "sort-desc"));
-            table.querySelector("th:nth-child(" + (column + 1) + ")").classList.toggle("sort-asc", asc);
-            table.querySelector("th:nth-child(" + (column + 1) + ")").classList.toggle("sort-desc", !asc);
-        };
-        
-        // Add event listeners to all dependency table headers
-        document.querySelectorAll(".deps-table th").forEach(function(headerCell, index) {
-            headerCell.addEventListener("click", function() {
-                const table = headerCell.closest("table");
-                const currentIsAscending = headerCell.classList.contains("sort-asc");
-                sortTable(table, index, !currentIsAscending);
             });
         });
     </script>
@@ -1146,5 +686,8 @@ program
     const filename = generateTimestampedFilename('project-deps');
     await saveAndOpenReport(report, '', options.browser === true, filename);
   });
+
+// Ensure command processing
+program.parse(process.argv);
 
 module.exports = NxProjectDepsAnalyzer;
