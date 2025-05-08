@@ -210,59 +210,7 @@ The MCP NPM Dependencies server provides these API endpoints:
 
 MCP NPM Dependencies stores configuration in `~/.mcp-npm-config.json`. You can modify it directly or use the `configure` command.
 
-## Cursor Editor Integration
 
-You can integrate MCP NPM Dependencies with the Cursor editor by adding the following MCP configuration to your Cursor settings:
-
-```json
-{
-  "mcp": {
-    "monorepo-deps": {
-      "server": {
-        "type": "http",
-        "url": "http://localhost:3000/api",
-        "description": "Monorepo NPM Dependencies"
-      },
-      "commands": [
-        {
-          "name": "Structure",
-          "command": "structure",
-          "description": "Show monorepo structure"
-        },
-        {
-          "name": "Inconsistencies",
-          "command": "inconsistencies",
-          "description": "Find version inconsistencies"
-        },
-        {
-          "name": "Circular",
-          "command": "circular",
-          "description": "Find circular dependencies"
-        },
-        {
-          "name": "Query",
-          "command": "query",
-          "description": "Ask about dependencies",
-          "parameters": [
-            {
-              "name": "query",
-              "type": "string",
-              "description": "Your question"
-            }
-          ]
-        }
-      ]
-    }
-  }
-}
-```
-
-This configuration connects Cursor to your MCP NPM Dependencies server, allowing you to run analysis commands and make natural language queries directly from your editor.
-
-To use this integration:
-1. Start the MCP server
-2. Configure Cursor with the MCP configuration
-3. Access commands via Cursor's command palette
 
 ## Examples
 
